@@ -3,6 +3,7 @@ import os
 import numpy as np
 import argparse
 
+# returns values from CP2K output
 def findvalueforpattern(filename, pattern):
     with open(filename, "r") as f:
         for line in f:
@@ -11,6 +12,8 @@ def findvalueforpattern(filename, pattern):
                 return line.split()[length-1]
     return False
 
+# get the time from CP2K output, function for a specific function, 
+# or total for total run time
 def get_time(filename, function):
     if function=='total':
         pattern = 'CP2K   '
@@ -29,10 +32,13 @@ def get_time(filename, function):
         print("time value not found in ", filename)
     return time
 
-def sorttime(key):
+# sort self times in order
+def sortselftime(key):
     return float(key['stime'][0])
 
-def top_self_time(filename):
+
+# find the n subroutines with top self time
+def top_self_time(filename, n):
     selftimes=[]
     with open(filename, "r") as f:
         for line in f:
@@ -46,43 +52,40 @@ def top_self_time(filename):
             item['stime'] = [float(line.split()[4])]
             selftimes.append(item)
 
-        selftimes.sort(key=sorttime, reverse=True)
-        del selftimes[10:]
+        selftimes.sort(key=sortselftime, reverse=True)
+        del selftimes[int(n):]
     return selftimes
  
+# return standard error
 def std_err(data):
     data = np.asarray(data)
+    if np.all((data==0)):
+        return 0
     error = np.std(data, ddof=1) / np.sqrt(np.size(data))
     return error
 
        
-
+# append matching self times together
 def appendselftimes(selftimes1, selftimes2):
     for item1 in selftimes1:
         present = False
         for item2 in selftimes2:
             if item1['name'] == item2['name']:
-                item1['stime'] = item1['stime']
                 item1['stime'].append(item2['stime'][0])
                 present = True
    
     return selftimes1
 
+# average self times
 def aveselftimes(selftime):
     for item in selftime:
         average = sum(item['stime'])/len(item['stime'])
-        error = std_err(item['stime'])
+        #error = std_err(item['stime'])
         item['average'] = average
-        item['error'] = error
+        #item['error'] = error
     return selftime
 
-def getuniquenames(filedata):
-    uniquenames = set()
-    for item in filedata:
-        for values in item['selftimes']:
-            uniquenames.add(values['name'])
-    return uniquenames
-
+# sorting functions for the read in file data
 def sortcores(key):
     return int(key['cores'])
 def sortthreads(key):
@@ -92,11 +95,13 @@ def sortsteps(key):
 def sortprojects(key):
     return key['project']
 
-
+# format output
 def fmt(x):
     return format(x, '0.5f')
 
-def extract_data(function):
+# extract data for CP2K output files ending in .log
+# report top n most costly subroutines
+def extract_data(function, n):
     path = os.getcwd()
     fname = []
     for root,d_names,f_names in os.walk(path):
@@ -115,6 +120,7 @@ def extract_data(function):
             project = findvalueforpattern(file, 'GLOBAL| Project name')
             cores = int(threads) * int(processes)
             time = get_time(file, function)
+            # if steps not in output set to 1
             if not findvalueforpattern(file, 'Number of time steps'):
                 fileinfo['steps'] = "1"
             else:
@@ -123,70 +129,97 @@ def extract_data(function):
             fileinfo['project'] = project
             fileinfo['cores'] = str(cores)
             fileinfo['time'] = [time]
-            fileinfo['selftimes'] = top_self_time(file)
+            fileinfo['selftimes'] = top_self_time(file, n)
+
+            # check if same run already exists
             found = False
-            for item in filedata:
-                if (item["steps"] == steps and item["threads"]==threads and item['cores']==str(cores)) and item['project']==project:
-                    item["time"].append(time)
-                    item["selftimes"] = appendselftimes(item['selftimes'], top_self_time(file))
+            for cp2kout in filedata:
+                # if exists we append the times found for aveaging later
+                if (cp2kout["steps"] == steps and cp2kout["threads"]==threads and cp2kout['cores']==str(cores)) and cp2kout['project']==project:
+                    cp2kout["time"].append(time)
+                    cp2kout["selftimes"] = appendselftimes(cp2kout['selftimes'], top_self_time(file, n))
                     found = True
+            # if not exists we add a new entry
             if found==False:
                 filedata.append(fileinfo)
     return filedata
 
 
-def extract(function="total"):
+def extract(function="total", n=5):
 
-    filedata = extract_data(function)
+    # extract the data from files
+    filedata = extract_data(function, n)
 
-    uniquenames = getuniquenames(filedata)
+    # find all unique values of cores, threads, steps, projects
     corevals = set()
     threadvals = set()
     stepvals = set()
     projects = set()
-    for item in filedata:
-        threadvals.add(item['threads'])
-        stepvals.add(item['steps'])
-        projects.add(item['project'])
-        item['selftimes'] = aveselftimes(item['selftimes'])
+    for cp2kout in filedata:
+        threadvals.add(cp2kout['threads'])
+        stepvals.add(cp2kout['steps'])
+        projects.add(cp2kout['project'])
+    # set up output files for the data   
     for threads in threadvals:
         for steps in stepvals:
             for proj in projects:
                 output = proj + "_" + function + "_" + steps + "steps_" + threads + "threads.out"
                 barfile = proj + "_topcalls_" + steps + "steps_" + threads + "threads.out"
+                # remove files if they exist
                 if os.path.exists(output):
                     os.remove(output)
+                if os.path.exists(barfile):
+                    os.remove(barfile)
                 of = open(output, "w")
                 bar = open(barfile, "w")
-                for names in uniquenames:
+                bar.write("cores\t")
+                uniquesubroutinenames = set()
+                # find unique top subroutines
+                for cp2kout in filedata:
+                    if cp2kout['steps'] == steps and cp2kout['threads']==threads and cp2kout['project']==proj:
+                        for values in cp2kout['selftimes']:
+                            uniquesubroutinenames.add(values['name'])
+                for names in uniquesubroutinenames:
                     bar.write(names + "\t")
                 of.write("cores     time     error\n")
                 of.close()
+                bar.close()
 
+    # sort data
     filedata.sort(key=sortcores)
     filedata.sort(key=sortthreads)
     filedata.sort(key=sortsteps)
     filedata.sort(key=sortprojects)
 
     #write out time info
-    for item in filedata:
-        output = item['project'] + "_" + function + "_" + item['steps'] + "steps_" + item['threads'] + "threads.out"
+    for cp2kout in filedata:
+        output = cp2kout['project'] + "_" + function + "_" + cp2kout['steps'] + "steps_" + cp2kout['threads'] + "threads.out"
         of = open(output, "a")
-        of.write(item['cores'] + "\t" + fmt(sum(item['time'])/len(item['time'])) + "\t" + fmt(std_err(item['time'])) + "\n")
+        of.write(cp2kout['cores'] + "\t" + fmt(sum(cp2kout['time'])/len(cp2kout['time'])) + "\t" + fmt(std_err(cp2kout['time'])) + "\n")
+        of.close()
 
     # write out subroutine top times
-    for item in filedata:
-        barfile = item['project'] + "_topcalls_" + item['steps'] + "steps_" + item['threads'] + "threads.out"
+    for cp2kout in filedata:
+         # average the selftimes 
+        cp2kout['selftimes'] = aveselftimes(cp2kout['selftimes'])
+        barfile = cp2kout['project'] + "_topcalls_" + cp2kout['steps'] + "steps_" + cp2kout['threads'] + "threads.out"
+        bar = open(barfile, "r")
+        # read first line to find subroutnie list
+        bar.seek(0)
+        subroutinenames = bar.readline()
+        subroutinenames = subroutinenames.split()
+        del subroutinenames[0]
+        bar.close()
         bar = open(barfile, "a")
-        bar.write("\n" + item['cores'] + "\t")
-        for names in uniquenames:
+        bar.write("\n" + cp2kout['cores'] + "\t")
+        for names in subroutinenames:
             exists=False
-            for value in item['selftimes']:
+            for value in cp2kout['selftimes']:
                 if value['name'] == names:
-                    bar.write(str(value['average']) + "\t")
+                    bar.write(fmt(value['average']) + "\t")
                     exists=True
             if exists==False:
-                bar.write("?   \t")
+                bar.write("0.00   \t")
         bar.write("\n")
 
 
@@ -198,14 +231,28 @@ def plotdata(filename, plottype="time"):
     if (plottype=='time'):
         plotscript = "time.plt"
         ylabel = "Time [s]"
-    if (plottype=='speedup'):
+    elif (plottype=='speedup'):
         plotscript = "speedup.plt"
         ylabel = "Speed up"
 
+    elif (plottype=='bar'):
+        plotscript = "bar.plt"
+        ylabel = "Time [s]"
+
     f = open(plotscript, "w")
-    f.write('#plot script for speed up \n')
+    f.write('#plot script for ' + plottype + ' \n')
     f.write('set key spacing 1.5 \n')
     f.write('set key top right \n')
+
+    if plottype=='bar':
+        f.write('set style data histograms \n')
+        f.write('set style histogram rowstacked \n')
+        f.write('set boxwidth 0.5 relative \n')
+        f.write('set style fill solid 1.0  \n')
+        f.write('set key at 9,16 \n')
+        f.write('set key spacing 1.1 \n')
+        f.write('set key font "Helvetica, 15" \n')
+        f.write('set rmargin 40 \n')
     f.write('set xlabel font "Helvetica, 26" \n')
     f.write('set ylabel font "Helvetica, 26" offset -2 \n')
     f.write('set ytics font "Helvetica, 20" \n')
@@ -231,6 +278,9 @@ def plotdata(filename, plottype="time"):
     if plottype=='speedup':
         f.write('first(x) = ($0 > 0 ? base : base = x) \n')
         f.write('plot for [i=2:*] filename u 1:(first($i),base/$i) w lp lw 4 ps 2 pt 2 \n')
+    if plottype=='bar':
+        f.write('set key noenhanced \n')
+        f.write('plot for [i=2:*:1] filename u i:xticlabels(1) lt i title columnheader \n')
     f.write('exit \n')
 
     f.close()
@@ -245,7 +295,6 @@ def plotdata(filename, plottype="time"):
             os.system(gnuplotcommand)
     '''
     gnuplotcommand = """gnuplot -e "filename='""""" + filename + "'" + '"' + " " + plotscript
-    print(gnuplotcommand)
     os.system(gnuplotcommand)
 
 
@@ -273,7 +322,6 @@ def gettimeperstep(name, function, val1, val2, threads):
     difference = val1 - val2
     cores1,data1,error1 = readdata(datafilename1)
     cores2,data2,error2 = readdata(datafilename2)
-    print (data1)
     if cores1 == cores2:
         print("data matches")
     for i in range(0,len(data1)):
@@ -288,8 +336,14 @@ if __name__=='__main__':
     my_parser.add_argument("mode", metavar="mode", type=str, 
                            help="The mode of operation")
 
-    my_parser.add_argument("inputname", metavar="in", type=str, 
+    my_parser.add_argument("--filename", metavar="filename", type=str, 
                            help="The input option")
+    my_parser.add_argument("--function", metavar="function", type=str, 
+                           help="The input option")
+    my_parser.add_argument("--notop", metavar="notop", type=str, 
+                           help="The input option")
+
+
 
     my_parser.add_argument("--plottype", metavar="opt", type=str, 
                            help="The extra option")
@@ -299,13 +353,19 @@ if __name__=='__main__':
     mode = args.mode
     
     if mode=='extract':
-        function = args.inputname
-        extract(function)
+        function = args.function
+        n = args.notop
+        print("Finding the " + n + "most costly subroutines")
+        extract(function, n)
     elif mode=='plot':
-        filename = args.inputname
+        filename = args.filename
         plottype = args.plottype
         plotdata(filename, plottype)
-    elif mode==tperstep:
+    elif mode==timestep:
+
         gettimeperstep("MQAE","total",6,1,1)
+    #elif mode==compare:
+
     else:
         sys.exit("mode not recognised")
+
