@@ -41,8 +41,21 @@ python3 qmmmextract.py plot --filename=MQAE_topcalls_1steps_1threads.out --plott
 This plots a data file (e.g. from generate by extract) given by its filename. The
 plot type can be _time_ or _su_ (speed up) or _bar_ (stacked bar for the top calls)
 
-## Get times based on time per step (e.g removing the contribution from the first step)
+## Get time per step 
+
+**Example usage:**
 
 ```
-gettimeperstep("MQAE","total",6,1,1)
+python3 qmmmextract.py timestep --name=MQAE --function=total --minsteps=1 --maxsteps=6 --threads=1,2
 ```
+This gives the timings in time per step, e.g. subtracting the time for a single step
+and dividing by the difference.
+
+For multiple files the threads arguement can be a list separated by commas.
+The output file will have the format:
+
+````
+$name_$function_$minsteps-$maxsteps_nthreads.out
+```
+
+## Compare
