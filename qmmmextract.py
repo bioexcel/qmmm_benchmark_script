@@ -112,7 +112,7 @@ def extract_data(function, n):
     filedata = []
     for file in fname:
         if file.endswith(".log"):
-            print(file)
+            print("Found CP2K logfile: " + file)
             fileinfo = {}
             steps = findvalueforpattern(file, 'Number of time steps')
             threads = findvalueforpattern(file, 'Number of threads for this process')
@@ -225,7 +225,7 @@ def extract(function="total", n=5):
 
 def plotdata(filename, plottype="time"):
 
-    if not os.path.exists(filename):
+    if not os.path.exists(filename) or filename=='all':
         sys.exit("filename doesn't exist")
 
     if (plottype=='time'):
@@ -271,7 +271,7 @@ def plotdata(filename, plottype="time"):
     f.write('set xlabel "Cores" \n')
     f.write('f(x) = x \n')
     f.write('set ylabel "' + ylabel +'"' + '\n')
-    f.write('set terminal postscript enhanced color eps \n')
+    f.write('set terminal postscript enhanced color eps background rgb "white" \n')
     f.write('set output sprintf("%s.eps", filename) \n')
     if plottype=='time':
         f.write('plot for [i=2:*:2] filename u 1:i w lp lt i title columnheader, for [i=2:*:2] filename u 1:i:i+1 w yerrorbars notitle ps 2 pt 2 lt i/2+1 lw 4 \n')
@@ -286,14 +286,14 @@ def plotdata(filename, plottype="time"):
     f.close()
     path = os.getcwd()
 
-    '''
-    for file in os.listdir(path):
-        if file.endswith(".out"):
-            print(os.path.join(path, file))
-            gnuplotcommand = """gnuplot -e "filename='""""" + path + file + "'" + '"' + " " + plotscript
-            print(gnuplotcommand)
-            os.system(gnuplotcommand)
-    '''
+    if filename=='all':
+        for file in os.listdir(path):
+            if file.endswith(".out"):
+                print(os.path.join(path, file))
+                gnuplotcommand = """gnuplot -e "filename='""""" + path + file + "'" + '"' + " " + plotscript
+                print(gnuplotcommand)
+                os.system(gnuplotcommand)
+    
     gnuplotcommand = """gnuplot -e "filename='""""" + filename + "'" + '"' + " " + plotscript
     os.system(gnuplotcommand)
 
@@ -311,15 +311,28 @@ def readdata(filename):
     return cores,data,error
 
 
+
+#def compareplot(file1, file2, cores):
+    # paste files together 
+    # sensible column names
+    # plot data
+
 def gettimeperstep(name, function, val1, val2, threads):
+
+
 
     datafilename1 = name + "_" + function + "_" + str(val1) + "steps_" + str(threads) + "threads.out"
     datafilename2 = name + "_" + function + "_" + str(val2) + "steps_" + str(threads) + "threads.out"
     difffilename = name + "_" + function + "_" + str(val1) + "-"+ str(val2) + "steps_" + str(threads) + "threads.out"
 
+    if not os.path.isfile(datafilename1):
+        sys.exit("filename " + datafilename1 + " doesn't exist")
+    if not os.path.isfile(datafilename2):
+        sys.exit("filename " + datafilename2 + " doesn't exist")
+
     of = open(difffilename, "w")
     of.write("cores     time     error\n")
-    difference = val1 - val2
+    difference = int(val1) - int(val2)
     cores1,data1,error1 = readdata(datafilename1)
     cores2,data2,error2 = readdata(datafilename2)
     if cores1 == cores2:
@@ -343,29 +356,77 @@ if __name__=='__main__':
     my_parser.add_argument("--notop", metavar="notop", type=str, 
                            help="The input option")
 
-
-
     my_parser.add_argument("--plottype", metavar="opt", type=str, 
                            help="The extra option")
 
-
+    my_parser.add_argument("--name", metavar="notop", type=str, 
+                           help="The input option")
+    my_parser.add_argument("--maxsteps", metavar="notop", type=str, 
+                           help="The input option")
+    my_parser.add_argument("--minsteps", metavar="notop", type=str, 
+                           help="The input option")
+    my_parser.add_argument("--threads", metavar="notop", type=str, 
+                           help="The input option")
+ 
     args = my_parser.parse_args()
     mode = args.mode
     
     if mode=='extract':
-        function = args.function
-        n = args.notop
-        print("Finding the " + n + "most costly subroutines")
+
+        if args.function == None:
+            print("No --function specified, doing total run time as default")
+            function='total'
+        else:
+            function = args.function
+        if args.notop == None:
+            print("No --notop specified, doing the top 5 most costly subroutines")
+            n = 5
+        else:
+            n = args.notop
+            print("Finding the " + n + " most costly subroutines")
         extract(function, n)
     elif mode=='plot':
-        filename = args.filename
-        plottype = args.plottype
-        plotdata(filename, plottype)
-    elif mode==timestep:
 
-        gettimeperstep("MQAE","total",6,1,1)
+
+        if args.filename == None:
+            sys.exit("Filename (--filename) required for plot option")
+        else:
+            filename = args.filename
+        if args.plot == None:
+            print("No --plottype specified, doing time plot as default plot")
+        else:
+            plottype = args.plottype
+        plotdata(filename, plottype)
+    elif mode=='timestep':
+        
+        if args.name == None:
+            sys.exit("CP2K project name (--name) required for timestep option")
+        else:
+            name = args.name
+        if args.function == None:
+            sys.exit("Subroutine name (--function) required for timestep option")
+        else:
+            function = args.function
+
+        if args.maxsteps == None:
+            sys.exit("Max steps (--maxsteps) required for timestep option")
+        else:
+            maxsteps = args.maxsteps
+        if args.minsteps == None:
+            sys.exit("Min steps (--minsteps) required for timestep option")
+        else:
+            minsteps = args.minsteps
+        if args.threads == None:
+            sys.exit("Number of threads (--threads) required for timestep option")
+        else:
+            threads = args.threads
+
+        threads = threads.split(',')
+        for t in threads:
+            gettimeperstep(name,function,maxsteps,minsteps,t)
     #elif mode==compare:
 
     else:
         sys.exit("mode not recognised")
+
 
