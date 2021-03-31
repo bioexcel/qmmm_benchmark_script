@@ -54,8 +54,10 @@ and dividing by the difference.
 For multiple files the threads arguement can be a list separated by commas.
 The output file will have the format:
 
-````
+```
 $name_$function_$minsteps-$maxsteps_nthreads.out
 ```
 
 ## Compare
+
+
