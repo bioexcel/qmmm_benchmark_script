@@ -231,13 +231,15 @@ def plotdata(filename, plottype="time"):
     if (plottype=='time'):
         plotscript = "time.plt"
         ylabel = "Time [s]"
+        xlabel = "Cores"
     elif (plottype=='speedup'):
         plotscript = "speedup.plt"
         ylabel = "Speed up"
-
+        xlabel = "Number of nodes"
     elif (plottype=='bar'):
         plotscript = "bar.plt"
         ylabel = "Time [s]"
+        xlabel = "Cores"
 
     f = open(plotscript, "w")
     f.write('#plot script for ' + plottype + ' \n')
@@ -268,16 +270,19 @@ def plotdata(filename, plottype="time"):
     f.write('set linetype  9 lc rgb "gray50"  lw 4 \n')
     f.write('set size ratio 0.5 \n')
     f.write('set lmargin 12 \n')
-    f.write('set xlabel "Cores" \n')
+    f.write('set xlabel "' + xlabel + '"' + '\n')
     f.write('f(x) = x \n')
     f.write('set ylabel "' + ylabel +'"' + '\n')
     f.write('set terminal postscript enhanced color eps background rgb "white" \n')
-    f.write('set output sprintf("%s.eps", filename) \n')
+    f.write('set output sprintf("%s-' + plottype + '.eps", filename) \n')
     if plottype=='time':
+        f.write('unset key \n')
         f.write('plot for [i=2:*:2] filename u 1:i w lp lt i title columnheader, for [i=2:*:2] filename u 1:i:i+1 w yerrorbars notitle ps 2 pt 2 lt i/2+1 lw 4 \n')
     if plottype=='speedup':
-        f.write('first(x) = ($0 > 0 ? base : base = x) \n')
-        f.write('plot for [i=2:*] filename u 1:(first($i),base/$i) w lp lw 4 ps 2 pt 2 \n')
+        f.write('unset key \n')
+        f.write("""cpn = system("awk 'FNR == 2 {print $1}' """ + filename +'") \n')
+        f.write("""first = system("awk 'FNR == 2 {print $2}' """ + filename +'") \n')
+        f.write('plot filename u ($1/cpn):((first/$2)) w lp lw 4 ps 2 pt 2 lt 2, f(x) lw 2 lt 9 \n')
     if plottype=='bar':
         f.write('set key noenhanced \n')
         f.write('plot for [i=2:*:1] filename u i:xticlabels(1) lt i title columnheader \n')
@@ -392,7 +397,7 @@ if __name__=='__main__':
             sys.exit("Filename (--filename) required for plot option")
         else:
             filename = args.filename
-        if args.plot == None:
+        if args.plottype == None:
             print("No --plottype specified, doing time plot as default plot")
         else:
             plottype = args.plottype
@@ -428,5 +433,3 @@ if __name__=='__main__':
 
     else:
         sys.exit("mode not recognised")
-
-
