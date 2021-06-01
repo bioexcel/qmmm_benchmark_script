@@ -241,7 +241,7 @@ def plotdata(filename, plottype="time"):
         xlabel = "Number of nodes"
     elif (plottype=='bar'):
         plotscript = "bar.plt"
-        ylabel = "Time [s]"
+        ylabel = "Fraction of total time"
         xlabel = "Cores"
 
     f = open(plotscript, "w")
