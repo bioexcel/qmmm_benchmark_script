@@ -170,20 +170,18 @@ def extract(function="total", n=5):
                     os.remove(output)
                 if os.path.exists(barfile):
                     os.remove(barfile)
-                of = open(output, "w")
-                bar = open(barfile, "w")
-                bar.write("cores\t")
                 uniquesubroutinenames = set()
                 # find unique top subroutines
                 for cp2kout in filedata:
                     if cp2kout['steps'] == steps and cp2kout['threads']==threads and cp2kout['project']==proj:
                         for values in cp2kout['selftimes']:
                             uniquesubroutinenames.add(values['name'])
-                for names in uniquesubroutinenames:
-                    bar.write(names + "\t")
-                of.write("cores     time     error\n")
-                of.close()
-                bar.close()
+                if len(uniquesubroutinenames) !=0:
+                    bar = open(barfile, "w")
+                    bar.write("cores\t")
+                    for names in uniquesubroutinenames:
+                        bar.write(names + "\t")
+                    bar.close()
 
     # sort data
     filedata.sort(key=sortcores)
@@ -194,7 +192,11 @@ def extract(function="total", n=5):
     #write out time info
     for cp2kout in filedata:
         output = cp2kout['project'] + "_" + function + "_" + cp2kout['steps'] + "steps_" + cp2kout['threads'] + "threads.out"
-        of = open(output, "a")
+        if os.path.exists(output):
+            of = open(output, "a")
+        else:
+            of = open(output, "w")
+            of.write("cores     time     error\n")
         of.write(cp2kout['cores'] + "\t" + fmt(sum(cp2kout['time'])/len(cp2kout['time'])) + "\t" + fmt(std_err(cp2kout['time'])) + "\n")
         of.close()
 
@@ -202,6 +204,7 @@ def extract(function="total", n=5):
     for cp2kout in filedata:
          # average the selftimes 
         cp2kout['selftimes'] = aveselftimes(cp2kout['selftimes'])
+        totaltimeaverage = sum(cp2kout["time"])/len(cp2kout["time"])
         barfile = cp2kout['project'] + "_topcalls_" + cp2kout['steps'] + "steps_" + cp2kout['threads'] + "threads.out"
         bar = open(barfile, "r")
         # read first line to find subroutnie list
@@ -216,7 +219,7 @@ def extract(function="total", n=5):
             exists=False
             for value in cp2kout['selftimes']:
                 if value['name'] == names:
-                    bar.write(fmt(value['average']) + "\t")
+                    bar.write(fmt(value['average']/totaltimeaverage) + "\t")
                     exists=True
             if exists==False:
                 bar.write("0.00   \t")
