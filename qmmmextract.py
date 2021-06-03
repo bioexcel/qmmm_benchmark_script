@@ -274,15 +274,13 @@ def plotdata(filename, plottype="time"):
     f.write('set ylabel font "Helvetica, 26" offset -2 \n')
     f.write('set ytics font "Helvetica, 20" \n')
     f.write('set xtics font "Helvetica, 20" \n')
-    f.write('set linetype  1 lc rgb "dark-violet" lw 4 \n')
-    f.write('set linetype  2 lc rgb "#0011a7" lw 4 \n')
-    f.write('set linetype  3 lc rgb "#ff0101" lw 4 \n')
-    f.write('set linetype  6 lc rgb "#9ed323" lw 4 \n')
-    f.write('set linetype  7 lc rgb "#fea655" lw 4 \n')
-    f.write('set linetype  5 lc rgb "#70cce1" lw 4 \n')
-    f.write('set linetype  4 lc rgb "#0b8900" lw 4 \n')
-    f.write('set linetype  8 lc rgb "black"   lw 4 \n')
-    f.write('set linetype  9 lc rgb "gray50"  lw 4 \n')
+    colours = ['#e6194b','#3cb44b','#ffe119','#0082c8','#f58231',
+               '#911eb4','#46f0f0','#f032e6','#d2f53c','#fabebe',
+               '#008080','#e6beff','#aa6e28','#fffac8','#800000',
+               '#aaffc3','#808000','#ffd8b1','#000080','#808080',
+               '#ffffff','#000000']
+    for i,colour in enumerate(colours, start=1):
+        f.write('set linetype ' + str(i) + ' lc rgb "' + colour + '" lw 4 \n')
     f.write('set size ratio 0.5 \n')
     f.write('set lmargin 12 \n')
     f.write('set xlabel "' + xlabel + '"' + '\n')
