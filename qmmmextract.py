@@ -1,4 +1,4 @@
-#!/user/bin/env python
+#!/usr/bin/env python
 import sys
 import os
 import numpy as np
@@ -84,6 +84,17 @@ def aveselftimes(selftime):
         #error = std_err(item['stime'])
         item['average'] = average
         #item['error'] = error
+    return selftime
+
+# average fractional self time
+def avefractionselftime(selftime, totaltime):
+    for funcname in selftime:
+        fracsum = 0.0
+        for run, time in zip(funcname['stime'], totaltime):
+            fraction = run/time
+            fracsum += fraction
+        fracsum = fracsum / len(funcname['stime'])
+        funcname['average'] = fracsum
     return selftime
 
 # sorting functions for the read in file data
@@ -204,7 +215,7 @@ def extract(function="total", n=5):
     # write out subroutine top times
     for cp2kout in filedata:
          # average the selftimes 
-        cp2kout['selftimes'] = aveselftimes(cp2kout['selftimes'])
+        cp2kout['selftimes'] = avefractionselftime(cp2kout['selftimes'], cp2kout['time'])
         totaltimeaverage = sum(cp2kout["time"])/len(cp2kout["time"])
         barfile = cp2kout['project'] + "_topcalls_" + cp2kout['steps'] + "steps_" + cp2kout['threads'] + "threads.out"
         bar = open(barfile, "r")
@@ -220,7 +231,7 @@ def extract(function="total", n=5):
             exists=False
             for value in cp2kout['selftimes']:
                 if value['name'] == names:
-                    bar.write(fmt(value['average']/totaltimeaverage) + "\t")
+                    bar.write(fmt(value['average']) + "\t")
                     exists=True
             if exists==False:
                 bar.write("0.00   \t")
