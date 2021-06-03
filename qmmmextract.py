@@ -1,3 +1,4 @@
+#!/user/bin/env python
 import sys
 import os
 import numpy as np
@@ -254,7 +255,7 @@ def plotdata(filename, plottype="time"):
         f.write('set style histogram rowstacked \n')
         f.write('set boxwidth 0.5 relative \n')
         f.write('set style fill solid 1.0  \n')
-       # f.write('set key at 9,16 \n')
+        f.write('set key outside right \n')
         f.write('set key spacing 1.1 \n')
         f.write('set key font "Helvetica, 15" \n')
         f.write('set rmargin 40 \n')
