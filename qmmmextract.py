@@ -39,8 +39,14 @@ def sortselftime(key):
 
 
 # find the n subroutines with top self time
-def top_self_time(filename, n):
+def top_self_time(filename, n, timetype):
     selftimes=[]
+    if timetype=='M':
+        column = 4
+    elif timetype=='A':
+        column = 3
+    else:
+        column = 3
     with open(filename, "r") as f:
         for line in f:
             if 'CP2K   ' in line:
@@ -50,7 +56,7 @@ def top_self_time(filename, n):
                 break
             item = {}
             item['name'] = line.split()[0]
-            item['stime'] = [float(line.split()[4])]
+            item['stime'] = [float(line.split()[column])]
             selftimes.append(item)
 
         selftimes.sort(key=sortselftime, reverse=True)
@@ -141,7 +147,8 @@ def extract_data(function, n):
             fileinfo['project'] = project
             fileinfo['cores'] = str(cores)
             fileinfo['time'] = [time]
-            fileinfo['selftimes'] = top_self_time(file, n)
+            fileinfo['maxselftimes'] = top_self_time(file, n, 'M')
+            fileinfo['aveselftimes'] = top_self_time(file, n, 'A')
 
             # check if same run already exists
             found = False
@@ -149,12 +156,53 @@ def extract_data(function, n):
                 # if exists we append the times found for aveaging later
                 if (cp2kout["steps"] == steps and cp2kout["threads"]==threads and cp2kout['cores']==str(cores)) and cp2kout['project']==project:
                     cp2kout["time"].append(time)
-                    cp2kout["selftimes"] = appendselftimes(cp2kout['selftimes'], top_self_time(file, n))
+                    cp2kout["maxselftimes"] = appendselftimes(cp2kout['maxselftimes'], top_self_time(file, n, 'M'))
+                    cp2kout["aveselftimes"] = appendselftimes(cp2kout['aveselftimes'], top_self_time(file, n, 'A'))
                     found = True
             # if not exists we add a new entry
             if found==False:
                 filedata.append(fileinfo)
     return filedata
+
+def uniquenamesfind(filedata, filename, selftimes, steps, threads, proj):
+    uniquesubroutinenames = set()
+    # find unique top subroutines
+    for cp2kout in filedata:
+        if cp2kout['steps'] == steps and cp2kout['threads']==threads and cp2kout['project']==proj:
+            for values in cp2kout[selftimes]:
+                 uniquesubroutinenames.add(values['name'])
+    uniquesubroutinenames = sorted(uniquesubroutinenames)
+    if len(uniquesubroutinenames) !=0:
+        bar = open(filename, "w")
+        bar.write("cores\t")
+        for names in uniquesubroutinenames:
+            bar.write(names + "\t")
+        bar.close()
+
+
+def writebarfile(cp2kout, filename, selftimes):
+
+
+    cp2kout[selftimes] = avefractionselftime(cp2kout[selftimes], cp2kout['time'])
+    bar = open(filename, "r")
+    # read first line to find subroutnie list
+    bar.seek(0)
+    subroutinenames = bar.readline()
+    subroutinenames = subroutinenames.split()
+    del subroutinenames[0]
+    bar.close()
+    bar = open(filename, "a")
+    bar.write("\n" + cp2kout['cores'] + "\t")
+    for names in subroutinenames:
+        exists=False
+        for value in cp2kout[selftimes]:
+            if value['name'] == names:
+                bar.write(fmt(value['average']) + "\t")
+                exists=True
+        if exists==False:
+            bar.write("0.00   \t")
+    bar.write("\n")
+
 
 
 def extract(function="total", n=5):
@@ -176,24 +224,20 @@ def extract(function="total", n=5):
         for steps in stepvals:
             for proj in projects:
                 output = proj + "_" + function + "_" + steps + "steps_" + threads + "threads.out"
-                barfile = proj + "_topcalls_" + steps + "steps_" + threads + "threads.out"
+                maxbarfile = proj + "_topcalls_" + steps + "steps_" + threads + "threads-MAX.out"
+                avebarfile = proj + "_topcalls_" + steps + "steps_" + threads + "threads-AVE.out"
+
                 # remove files if they exist
                 if os.path.exists(output):
                     os.remove(output)
-                if os.path.exists(barfile):
-                    os.remove(barfile)
-                uniquesubroutinenames = set()
-                # find unique top subroutines
-                for cp2kout in filedata:
-                    if cp2kout['steps'] == steps and cp2kout['threads']==threads and cp2kout['project']==proj:
-                        for values in cp2kout['selftimes']:
-                            uniquesubroutinenames.add(values['name'])
-                if len(uniquesubroutinenames) !=0:
-                    bar = open(barfile, "w")
-                    bar.write("cores\t")
-                    for names in uniquesubroutinenames:
-                        bar.write(names + "\t")
-                    bar.close()
+                if os.path.exists(maxbarfile):
+                    os.remove(maxbarfile)
+                uniquenamesfind(filedata, maxbarfile, 'maxselftimes', steps, threads, proj)
+                uniquenamesfind(filedata, avebarfile, 'aveselftimes', steps, threads, proj)
+
+
+
+
 
     # sort data
     filedata.sort(key=sortcores)
@@ -215,27 +259,11 @@ def extract(function="total", n=5):
     # write out subroutine top times
     for cp2kout in filedata:
          # average the selftimes 
-        cp2kout['selftimes'] = avefractionselftime(cp2kout['selftimes'], cp2kout['time'])
-        totaltimeaverage = sum(cp2kout["time"])/len(cp2kout["time"])
-        barfile = cp2kout['project'] + "_topcalls_" + cp2kout['steps'] + "steps_" + cp2kout['threads'] + "threads.out"
-        bar = open(barfile, "r")
-        # read first line to find subroutnie list
-        bar.seek(0)
-        subroutinenames = bar.readline()
-        subroutinenames = subroutinenames.split()
-        del subroutinenames[0]
-        bar.close()
-        bar = open(barfile, "a")
-        bar.write("\n" + cp2kout['cores'] + "\t")
-        for names in subroutinenames:
-            exists=False
-            for value in cp2kout['selftimes']:
-                if value['name'] == names:
-                    bar.write(fmt(value['average']) + "\t")
-                    exists=True
-            if exists==False:
-                bar.write("0.00   \t")
-        bar.write("\n")
+        maxbarfile = cp2kout['project'] + "_topcalls_" + cp2kout['steps'] + "steps_" + cp2kout['threads'] + "threads-MAX.out"
+        avebarfile = cp2kout['project'] + "_topcalls_" + cp2kout['steps'] + "steps_" + cp2kout['threads'] + "threads-AVE.out"
+        writebarfile(cp2kout, maxbarfile, 'maxselftimes')
+        writebarfile(cp2kout, avebarfile, 'aveselftimes')
+
 
 
 def plotdata(filename, plottype="time"):
