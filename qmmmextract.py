@@ -101,8 +101,8 @@ def avefractionselftime(selftime, totaltime, timeval):
     for funcname in selftime:
         fracsum = 0.0
         for run, time in zip(funcname[timeval], totaltime):
-            fraction = run
-            #fraction = run/time
+            #fraction = run
+            fraction = run/time
             fracsum += fraction
         fracsum = fracsum / len(funcname[timeval])
         funcname['finalval'] = fracsum
