@@ -3,6 +3,7 @@ import sys
 import os
 import numpy as np
 import argparse
+import copy
 
 # returns values from CP2K output
 def findvalueforpattern(filename, pattern):
@@ -37,6 +38,8 @@ def get_time(filename, function):
 def sortselftime(key):
     return float(key['stime'][0])
 
+def sortfinaltime(key):
+    return float(key['finalval'])
 
 # find the n subroutines with top self time
 def top_self_time(filename, n, timetype):
@@ -60,7 +63,8 @@ def top_self_time(filename, n, timetype):
             selftimes.append(item)
 
         selftimes.sort(key=sortselftime, reverse=True)
-        del selftimes[int(n):]
+        if n != -1:
+            del selftimes[int(n):]
     return selftimes
  
 # return standard error
@@ -93,14 +97,15 @@ def aveselftimes(selftime):
     return selftime
 
 # average fractional self time
-def avefractionselftime(selftime, totaltime):
+def avefractionselftime(selftime, totaltime, timeval):
     for funcname in selftime:
         fracsum = 0.0
-        for run, time in zip(funcname['stime'], totaltime):
-            fraction = run/time
+        for run, time in zip(funcname[timeval], totaltime):
+            fraction = run
+            #fraction = run/time
             fracsum += fraction
-        fracsum = fracsum / len(funcname['stime'])
-        funcname['average'] = fracsum
+        fracsum = fracsum / len(funcname[timeval])
+        funcname['finalval'] = fracsum
     return selftime
 
 # sorting functions for the read in file data
@@ -149,6 +154,7 @@ def extract_data(function, n):
             fileinfo['time'] = [time]
             fileinfo['maxselftimes'] = top_self_time(file, n, 'M')
             fileinfo['aveselftimes'] = top_self_time(file, n, 'A')
+            fileinfo['allavedata'] = top_self_time(file, -1, 'A')
 
             # check if same run already exists
             found = False
@@ -157,12 +163,49 @@ def extract_data(function, n):
                 if (cp2kout["steps"] == steps and cp2kout["threads"]==threads and cp2kout['cores']==str(cores)) and cp2kout['project']==project:
                     cp2kout["time"].append(time)
                     cp2kout["maxselftimes"] = appendselftimes(cp2kout['maxselftimes'], top_self_time(file, n, 'M'))
+                    cp2kout["allavedata"] = appendselftimes(cp2kout['allavedata'], top_self_time(file, -1, 'A'))
                     cp2kout["aveselftimes"] = appendselftimes(cp2kout['aveselftimes'], top_self_time(file, n, 'A'))
                     found = True
             # if not exists we add a new entry
             if found==False:
                 filedata.append(fileinfo)
     return filedata
+
+# find the normalised difference between subroutine times
+def diffselftimes(mindata, maxdata, minstep, maxstep, n):
+    difference = maxstep - minstep
+    for maxentry in maxdata['allavedata']:
+        maxentry['finalval'] = sum(maxentry['stime'])/len(maxentry['stime'])
+        for minentry in mindata['allavedata']:
+
+            if minentry['name'] == maxentry['name']:
+                maxentry['finalval'] = ((sum(maxentry['stime'])/len(maxentry['stime'])) - (sum(minentry['stime'])/len(minentry['stime'])))/difference
+
+    maxdata['allavedata'].sort(key=sortfinaltime, reverse=True)
+
+    del maxdata['allavedata'][int(n):]
+    return maxdata
+
+# extract the difference between timestep from subroutine data
+def extractdatawithtimestep(filedata, maxstep, minstep, threads, proj, cores, n):
+    mindata = []
+    minindex = 0
+    maxdata = []
+    maxindex = 0
+    # find entries where the step data is stored
+    for index, cp2kout in enumerate(filedata):
+        if cp2kout['cores'] == cores and cp2kout['threads']==threads and cp2kout['project']==proj:
+            if int(cp2kout['steps']) == minstep:
+                mindata = copy.deepcopy(cp2kout)
+                minindex = index
+            if int(cp2kout['steps']) == maxstep:
+                maxdata = copy.deepcopy(cp2kout)
+                maxindex = index
+    # exit if either is missing
+    if (len(maxdata)==0 or len(mindata)==0):
+        return
+    # do some compare and store in the maxstep entry
+    filedata[maxindex] = diffselftimes(mindata, maxdata, minstep, maxstep, n)
 
 def uniquenamesfind(filedata, filename, selftimes, steps, threads, proj):
     uniquesubroutinenames = set()
@@ -182,8 +225,6 @@ def uniquenamesfind(filedata, filename, selftimes, steps, threads, proj):
 
 def writebarfile(cp2kout, filename, selftimes):
 
-
-    cp2kout[selftimes] = avefractionselftime(cp2kout[selftimes], cp2kout['time'])
     bar = open(filename, "r")
     # read first line to find subroutnie list
     bar.seek(0)
@@ -197,18 +238,23 @@ def writebarfile(cp2kout, filename, selftimes):
         exists=False
         for value in cp2kout[selftimes]:
             if value['name'] == names:
-                bar.write(fmt(value['average']) + "\t")
+                bar.write(fmt(value['finalval']) + "\t")
                 exists=True
         if exists==False:
             bar.write("0.00   \t")
     bar.write("\n")
 
 
+def extract(function="total", n=5, minsteps=0, maxsteps=0):
 
-def extract(function="total", n=5):
 
+    if (minsteps == 0 or maxsteps == 0):
+        dodiff = 0
+    else:
+        dodiff = 1
     # extract the data from files
     filedata = extract_data(function, n)
+
 
     # find all unique values of cores, threads, steps, projects
     corevals = set()
@@ -219,14 +265,21 @@ def extract(function="total", n=5):
         threadvals.add(cp2kout['threads'])
         stepvals.add(cp2kout['steps'])
         projects.add(cp2kout['project'])
+        corevals.add(cp2kout['cores'])
     # set up output files for the data   
     for threads in threadvals:
-        for steps in stepvals:
-            for proj in projects:
+        for proj in projects:
+            diffbarfile = proj + "_topcalls_" + "diff_" + str(maxsteps) + "-" + str(minsteps) + "_" + threads + "threads.out"
+            if os.path.exists(diffbarfile):
+                os.remove(diffbarfile)
+            for steps in stepvals:
                 output = proj + "_" + function + "_" + steps + "steps_" + threads + "threads.out"
                 maxbarfile = proj + "_topcalls_" + steps + "steps_" + threads + "threads-MAX.out"
                 avebarfile = proj + "_topcalls_" + steps + "steps_" + threads + "threads-AVE.out"
 
+                if (dodiff == 1):
+                    for cores in corevals:
+                        extractdatawithtimestep(filedata, int(maxsteps), int(minsteps), threads, proj, cores, n)
                 # remove files if they exist
                 if os.path.exists(output):
                     os.remove(output)
@@ -234,7 +287,9 @@ def extract(function="total", n=5):
                     os.remove(maxbarfile)
                 uniquenamesfind(filedata, maxbarfile, 'maxselftimes', steps, threads, proj)
                 uniquenamesfind(filedata, avebarfile, 'aveselftimes', steps, threads, proj)
-
+            if (dodiff == 1):
+                uniquenamesfind(filedata, diffbarfile, 'allavedata', str(maxsteps), threads, proj)
+ 
 
 
 
@@ -258,11 +313,20 @@ def extract(function="total", n=5):
 
     # write out subroutine top times
     for cp2kout in filedata:
-         # average the selftimes 
         maxbarfile = cp2kout['project'] + "_topcalls_" + cp2kout['steps'] + "steps_" + cp2kout['threads'] + "threads-MAX.out"
         avebarfile = cp2kout['project'] + "_topcalls_" + cp2kout['steps'] + "steps_" + cp2kout['threads'] + "threads-AVE.out"
+        diffbarfile = cp2kout['project'] + "_topcalls_" + "diff_6-1_" + cp2kout['threads'] + "threads.out"
+        # get the fraction of total time and average
+        cp2kout['maxselftimes'] = avefractionselftime(cp2kout['maxselftimes'], cp2kout['time'], 'stime')
+        cp2kout['aveselftimes'] = avefractionselftime(cp2kout['aveselftimes'], cp2kout['time'], 'stime')
+        if (cp2kout['steps'] == str(maxsteps)):
+            for value, time in zip(cp2kout['allavedata'], cp2kout['time']):
+                value['finalval'] = value['finalval']/time 
+        # write out
         writebarfile(cp2kout, maxbarfile, 'maxselftimes')
         writebarfile(cp2kout, avebarfile, 'aveselftimes')
+        if (cp2kout['steps'] == str(maxsteps)):
+            writebarfile(cp2kout, diffbarfile, 'allavedata')
 
 
 
@@ -430,7 +494,17 @@ if __name__=='__main__':
         else:
             n = args.notop
             print("Finding the " + n + " most costly subroutines")
-        extract(function, n)
+        if args.maxsteps == None:
+            maxsteps = 0
+        else:
+            maxsteps = args.maxsteps
+        if args.minsteps == None:
+            minsteps = 0
+        else:
+            minsteps = args.minsteps
+ 
+        extract(function, n, minsteps, maxsteps)
+
     elif mode=='plot':
 
 

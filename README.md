@@ -30,6 +30,19 @@ files for this will be named as follows:
 $PROJECT_topcalls_nsteps_nthreads.out
 ```
 
+To get the normalised timestep difference times for each subrountine
+ add the minsteps and maxsteps options, where these are the two 
+timesteps to difference, e.g.
+
+```
+python3 qmmmextract.py extract --function=total --notop=10 --minsteps=1 --maxsteps=6
+```
+
+This will write the normalise times in a file named as follows:
+
+```
+$PROJECT_topcalls_diff_maxsteps-minsteps_nthreads.out
+```
 
 ## Plot
 
