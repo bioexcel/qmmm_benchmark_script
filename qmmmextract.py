@@ -185,14 +185,18 @@ def extract_data(function, n):
 # find the normalised difference between subroutine times
 def diffselftimes(mindata, maxdata, minstep, maxstep, n):
     difference = maxstep - minstep
+    difftotaltime = ((sum(maxdata['time'])/len(maxdata['time'])) - (sum(mindata['time'])/len(mindata['time'])))/ difference
     for maxentry in maxdata['allavedata']:
         maxentry['finalval'] = sum(maxentry['stime'])/len(maxentry['stime'])
         for minentry in mindata['allavedata']:
-
+            mintime = 0.0
             if minentry['name'] == maxentry['name']:
-                maxentry['finalval'] = ((sum(maxentry['stime'])/len(maxentry['stime'])) - (sum(minentry['stime'])/len(minentry['stime'])))/difference
+                mintime = sum(minentry['stime'])/len(minentry['stime'])
+                break
+        maxentry['finalval'] = (sum(maxentry['stime'])/len(maxentry['stime']) - mintime)/difference 
 
     maxdata['allavedata'].sort(key=sortfinaltime, reverse=True)
+    maxdata['difftotaltime'] = difftotaltime
 
     del maxdata['allavedata'][int(n):]
     return maxdata
@@ -318,6 +322,7 @@ def extract(function="total", n=5, minsteps=0, maxsteps=0):
 
     #write out time info
     for cp2kout in filedata:
+
         output = cp2kout['project'] + "_" + function + "_" + cp2kout['steps'] + "steps_" + cp2kout['threads'] + "threads.out"
         if os.path.exists(output):
             of = open(output, "a")
@@ -329,6 +334,7 @@ def extract(function="total", n=5, minsteps=0, maxsteps=0):
 
     # write out subroutine top times
     for cp2kout in filedata:
+        
         maxbarfile = cp2kout['project'] + "_topcalls_" + cp2kout['steps'] + "steps_" + cp2kout['threads'] + "threads-MAX.out"
         avebarfile = cp2kout['project'] + "_topcalls_" + cp2kout['steps'] + "steps_" + cp2kout['threads'] + "threads-AVE.out"
         imbalancebarfile = cp2kout['project'] + "_topcalls_" + cp2kout['steps'] + "steps_" + cp2kout['threads'] + "threads-IMBALANCE.out"
@@ -337,8 +343,8 @@ def extract(function="total", n=5, minsteps=0, maxsteps=0):
         cp2kout['maxselftimes'] = avefractionselftime(cp2kout['maxselftimes'], cp2kout['time'], 'stime')
         cp2kout['aveselftimes'] = avefractionselftime(cp2kout['aveselftimes'], cp2kout['time'], 'stime')
         if (cp2kout['steps'] == str(maxsteps)):
-            for value, time in zip(cp2kout['allavedata'], cp2kout['time']):
-                value['finalval'] = value['finalval']/time 
+            for value in cp2kout['allavedata']:
+                value['finalval'] = value['finalval']/cp2kout['difftotaltime']
         # write out
         writebarfile(cp2kout, maxbarfile, 'maxselftimes')
         writebarfile(cp2kout, avebarfile, 'aveselftimes')
