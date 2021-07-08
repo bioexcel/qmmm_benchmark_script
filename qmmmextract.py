@@ -44,12 +44,6 @@ def sortfinaltime(key):
 # find the n subroutines with top self time
 def top_self_time(filename, n, timetype):
     selftimes=[]
-    if timetype=='M':
-        column = 4
-    elif timetype=='A':
-        column = 3
-    else:
-        column = 3
     with open(filename, "r") as f:
         for line in f:
             if 'CP2K   ' in line:
@@ -59,9 +53,19 @@ def top_self_time(filename, n, timetype):
                 break
             item = {}
             item['name'] = line.split()[0]
-            item['stime'] = [float(line.split()[column])]
+            average = float(line.split()[3])
+            maximum = float(line.split()[4])
+            if average==0.0:
+                imbalance = 0.0
+            else:
+                imbalance = (maximum/average) - 1.0
+            if timetype=='A':
+                item['stime'] = [average]
+            elif timetype=='M':
+                item['stime'] = [maximum]
+            item['imbalance'] = [imbalance]
             selftimes.append(item)
-
+            
         selftimes.sort(key=sortselftime, reverse=True)
         if n != -1:
             del selftimes[int(n):]
@@ -83,6 +87,7 @@ def appendselftimes(selftimes1, selftimes2):
         for item2 in selftimes2:
             if item1['name'] == item2['name']:
                 item1['stime'].append(item2['stime'][0])
+                item1['imbalance'].append(item2['imbalance'][0])
                 present = True
    
     return selftimes1
@@ -104,9 +109,15 @@ def avefractionselftime(selftime, totaltime, timeval):
             #fraction = run
             fraction = run/time
             fracsum += fraction
-        fracsum = fracsum / len(funcname[timeval])
-        funcname['finalval'] = fracsum
+        avefraction = fracsum / len(funcname[timeval])
+        funcname['finalval'] = avefraction
+        imbalancesum = 0.0
+        for run, time in zip(funcname['imbalance'], totaltime):
+            imbalancesum += run
+        aveimbalance = imbalancesum / len(funcname['imbalance'])
+        funcname['aveimbalance'] = aveimbalance
     return selftime
+
 
 # sorting functions for the read in file data
 def sortcores(key):
@@ -155,7 +166,7 @@ def extract_data(function, n):
             fileinfo['maxselftimes'] = top_self_time(file, n, 'M')
             fileinfo['aveselftimes'] = top_self_time(file, n, 'A')
             fileinfo['allavedata'] = top_self_time(file, -1, 'A')
-
+            
             # check if same run already exists
             found = False
             for cp2kout in filedata:
@@ -223,7 +234,7 @@ def uniquenamesfind(filedata, filename, selftimes, steps, threads, proj):
         bar.close()
 
 
-def writebarfile(cp2kout, filename, selftimes):
+def writebarfile(cp2kout, filename, selftimes, valuekey='finalval'):
 
     bar = open(filename, "r")
     # read first line to find subroutnie list
@@ -238,7 +249,7 @@ def writebarfile(cp2kout, filename, selftimes):
         exists=False
         for value in cp2kout[selftimes]:
             if value['name'] == names:
-                bar.write(fmt(value['finalval']) + "\t")
+                bar.write(fmt(value[valuekey]) + "\t")
                 exists=True
         if exists==False:
             bar.write("0.00   \t")
@@ -254,8 +265,8 @@ def extract(function="total", n=5, minsteps=0, maxsteps=0):
         dodiff = 1
     # extract the data from files
     filedata = extract_data(function, n)
-
-
+    
+    
     # find all unique values of cores, threads, steps, projects
     corevals = set()
     threadvals = set()
@@ -276,7 +287,8 @@ def extract(function="total", n=5, minsteps=0, maxsteps=0):
                 output = proj + "_" + function + "_" + steps + "steps_" + threads + "threads.out"
                 maxbarfile = proj + "_topcalls_" + steps + "steps_" + threads + "threads-MAX.out"
                 avebarfile = proj + "_topcalls_" + steps + "steps_" + threads + "threads-AVE.out"
-
+                imbalancebarfile = proj + "_topcalls_" + steps + "steps_" + threads + "threads-IMBALANCE.out"
+                
                 if (dodiff == 1):
                     for cores in corevals:
                         extractdatawithtimestep(filedata, int(maxsteps), int(minsteps), threads, proj, cores, n)
@@ -285,8 +297,12 @@ def extract(function="total", n=5, minsteps=0, maxsteps=0):
                     os.remove(output)
                 if os.path.exists(maxbarfile):
                     os.remove(maxbarfile)
+                if os.path.exists(imbalancebarfile):
+                    os.remove(imbalancebarfile)
+                    
                 uniquenamesfind(filedata, maxbarfile, 'maxselftimes', steps, threads, proj)
                 uniquenamesfind(filedata, avebarfile, 'aveselftimes', steps, threads, proj)
+                uniquenamesfind(filedata, imbalancebarfile, 'maxselftimes', steps, threads, proj)
             if (dodiff == 1):
                 uniquenamesfind(filedata, diffbarfile, 'allavedata', str(maxsteps), threads, proj)
  
@@ -315,6 +331,7 @@ def extract(function="total", n=5, minsteps=0, maxsteps=0):
     for cp2kout in filedata:
         maxbarfile = cp2kout['project'] + "_topcalls_" + cp2kout['steps'] + "steps_" + cp2kout['threads'] + "threads-MAX.out"
         avebarfile = cp2kout['project'] + "_topcalls_" + cp2kout['steps'] + "steps_" + cp2kout['threads'] + "threads-AVE.out"
+        imbalancebarfile = cp2kout['project'] + "_topcalls_" + cp2kout['steps'] + "steps_" + cp2kout['threads'] + "threads-IMBALANCE.out"
         diffbarfile = cp2kout['project'] + "_topcalls_" + "diff_6-1_" + cp2kout['threads'] + "threads.out"
         # get the fraction of total time and average
         cp2kout['maxselftimes'] = avefractionselftime(cp2kout['maxselftimes'], cp2kout['time'], 'stime')
@@ -325,6 +342,7 @@ def extract(function="total", n=5, minsteps=0, maxsteps=0):
         # write out
         writebarfile(cp2kout, maxbarfile, 'maxselftimes')
         writebarfile(cp2kout, avebarfile, 'aveselftimes')
+        writebarfile(cp2kout, imbalancebarfile, 'maxselftimes', valuekey='aveimbalance')
         if (cp2kout['steps'] == str(maxsteps)):
             writebarfile(cp2kout, diffbarfile, 'allavedata')
 
@@ -347,13 +365,17 @@ def plotdata(filename, plottype="time"):
         plotscript = "bar.plt"
         ylabel = "Fraction of total time"
         xlabel = "Cores"
-
+    elif (plottype=='barimbalance'):
+        plotscript = "bar.plt"
+        ylabel = "Load imbalance"
+        xlabel = "Cores"
+        
     f = open(plotscript, "w")
     f.write('#plot script for ' + plottype + ' \n')
     f.write('set key spacing 1.5 \n')
     f.write('set key top right \n')
 
-    if plottype=='bar':
+    if plottype=='bar' or plottype=='barimbalance':
         f.write('set style data histograms \n')
         f.write('set style histogram rowstacked \n')
         f.write('set boxwidth 0.5 relative \n')
@@ -388,7 +410,7 @@ def plotdata(filename, plottype="time"):
         f.write("""cpn = system("awk 'FNR == 2 {print $1}' """ + filename +'") \n')
         f.write("""first = system("awk 'FNR == 2 {print $2}' """ + filename +'") \n')
         f.write('plot filename u ($1/cpn):((first/$2)) w lp lw 4 ps 2 pt 2 lt 2, f(x) lw 2 lt 9 \n')
-    if plottype=='bar':
+    if plottype=='bar' or plottype=='barimbalance':
         f.write('set key noenhanced \n')
         f.write('plot for [i=2:*:1] filename u i:xticlabels(1) lt i title columnheader \n')
     f.write('exit \n')
