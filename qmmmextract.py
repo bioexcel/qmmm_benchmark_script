@@ -306,6 +306,7 @@ def extract(function="total", n=5, minsteps=0, maxsteps=0):
                 os.remove(diffimbalancebarfile)
             for steps in stepvals:
                 output = proj + "_" + function + "_" + steps + "steps_" + threads + "threads.out"
+                diffoutput = proj + "_total_diff" + str(maxsteps) + "-" + str(minsteps) + "_" + threads + "threads.out"
                 maxbarfile = proj + "_topcalls_" + steps + "steps_" + threads + "threads-MAX.out"
                 avebarfile = proj + "_topcalls_" + steps + "steps_" + threads + "threads-AVE.out"
                 imbalancebarfile = proj + "_topcalls_" + steps + "steps_" + threads + "threads-IMBALANCE.out"
@@ -316,6 +317,8 @@ def extract(function="total", n=5, minsteps=0, maxsteps=0):
                 # remove files if they exist
                 if os.path.exists(output):
                     os.remove(output)
+                if os.path.exists(diffoutput):
+                    os.remove(diffoutput)
                 if os.path.exists(maxbarfile):
                     os.remove(maxbarfile)
                 if os.path.exists(imbalancebarfile):
@@ -342,6 +345,7 @@ def extract(function="total", n=5, minsteps=0, maxsteps=0):
     for cp2kout in filedata:
 
         output = cp2kout['project'] + "_" + function + "_" + cp2kout['steps'] + "steps_" + cp2kout['threads'] + "threads.out"
+        diffoutput = cp2kout['project'] + "_total_diff" + str(maxsteps) + "-" + str(minsteps) + "_" + threads + "threads.out"
         if os.path.exists(output):
             of = open(output, "a")
         else:
@@ -349,6 +353,16 @@ def extract(function="total", n=5, minsteps=0, maxsteps=0):
             of.write("cores     time     error\n")
         of.write(cp2kout['cores'] + "\t" + fmt(sum(cp2kout['time'])/len(cp2kout['time'])) + "\t" + fmt(std_err(cp2kout['time'])) + "\n")
         of.close()
+
+
+        if cp2kout['steps'] == str(maxsteps):
+            if os.path.exists(diffoutput):
+                of = open(diffoutput, "a")
+            else:
+                of = open(diffoutput, "w")
+                of.write("cores     time\n")
+            of.write(cp2kout['cores'] + "\t" + fmt(cp2kout['difftotaltime']) + "\n")
+            of.close()
 
     # write out subroutine top times
     for cp2kout in filedata:
