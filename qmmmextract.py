@@ -345,7 +345,7 @@ def extract(function="total", n=5, minsteps=0, maxsteps=0):
     for cp2kout in filedata:
 
         output = cp2kout['project'] + "_" + function + "_" + cp2kout['steps'] + "steps_" + cp2kout['threads'] + "threads.out"
-        diffoutput = cp2kout['project'] + "_total_diff" + str(maxsteps) + "-" + str(minsteps) + "_" + threads + "threads.out"
+        diffoutput = cp2kout['project'] + "_total_diff" + str(maxsteps) + "-" + str(minsteps) + "_" + cp2kout['threads'] + "threads.out"
         if os.path.exists(output):
             of = open(output, "a")
         else:
