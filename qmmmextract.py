@@ -275,6 +275,15 @@ def writebarfile(cp2kout, filename, selftimes, valuekey='finalval'):
     bar.write("\n")
 
 
+def checkempty(time):
+    if sum(time) <= 0.0:
+        return True
+    else:
+        for val in time:
+            if val <= 0.0:
+                time.remove(val)
+        return False
+
 def extract(function="total", n=5, minsteps=0, maxsteps=0):
 
     if (minsteps == 0 or maxsteps == 0):
@@ -295,6 +304,8 @@ def extract(function="total", n=5, minsteps=0, maxsteps=0):
         stepvals.add(cp2kout['steps'])
         projects.add(cp2kout['project'])
         corevals.add(cp2kout['cores'])
+        if checkempty(cp2kout['time']):
+            filedata.remove(cp2kout)
     # set up output files for the data   
     for threads in threadvals:
         for proj in projects:
@@ -366,7 +377,6 @@ def extract(function="total", n=5, minsteps=0, maxsteps=0):
 
     # write out subroutine top times
     for cp2kout in filedata:
-        
         maxbarfile = cp2kout['project'] + "_topcalls_" + cp2kout['steps'] + "steps_" + cp2kout['threads'] + "threads-MAX.out"
         avebarfile = cp2kout['project'] + "_topcalls_" + cp2kout['steps'] + "steps_" + cp2kout['threads'] + "threads-AVE.out"
         imbalancebarfile = cp2kout['project'] + "_topcalls_" + cp2kout['steps'] + "steps_" + cp2kout['threads'] + "threads-IMBALANCE.out"
