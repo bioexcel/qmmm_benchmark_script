@@ -207,7 +207,7 @@ def diffselftimes(minstepdata, maxstepdata, minstep, maxstep, n):
         if maxentry['ave_selftime_stepav'] == 0.0:
             imbalance = 0.0
         else:
-            imbalance = maxentry['max_selftime_stepav']/maxentry['ave_selftime_stepav']
+            imbalance = (maxentry['max_selftime_stepav']/maxentry['ave_selftime_stepav']) - 1.0
         maxentry['imbalance_stepav'] = imbalance
 
     maxstepdata['allselftimes'].sort(key=sort_on_ave_selftime_stepav, reverse=True)
@@ -298,10 +298,13 @@ def extract(function="total", n=5, minsteps=0, maxsteps=0):
     # set up output files for the data   
     for threads in threadvals:
         for proj in projects:
-            diffbarfile = proj + "_topcalls_" + "diff_" + str(maxsteps) + "-" + str(minsteps) + "_" + threads + "threads-AVE.out"
+            avediffbarfile = proj + "_topcalls_" + "diff_" + str(maxsteps) + "-" + str(minsteps) + "_" + threads + "threads-AVE.out"
+            maxdiffbarfile = proj + "_topcalls_" + "diff_" + str(maxsteps) + "-" + str(minsteps) + "_" + threads + "threads-MAX.out"
             diffimbalancebarfile = proj + "_topcalls_" + "diff_" + str(maxsteps) + "-" + str(minsteps) + "_" + threads + "threads-IMBALANCE.out"
-            if os.path.exists(diffbarfile):
-                os.remove(diffbarfile)
+            if os.path.exists(avediffbarfile):
+                os.remove(avediffbarfile)
+            if os.path.exists(maxdiffbarfile):
+                os.remove(maxdiffbarfile)    
             if os.path.exists(diffimbalancebarfile):
                 os.remove(diffimbalancebarfile)
             for steps in stepvals:
@@ -316,16 +319,19 @@ def extract(function="total", n=5, minsteps=0, maxsteps=0):
                 # remove files if they exist
                 if os.path.exists(output):
                     os.remove(output)
+                if os.path.exists(avebarfile):
+                    os.remove(avebarfile)
                 if os.path.exists(maxbarfile):
                     os.remove(maxbarfile)
                 if os.path.exists(imbalancebarfile):
                     os.remove(imbalancebarfile)
                     
-                uniquenamesfind(filedata, maxbarfile, 'maxselftimes', steps, threads, proj)
                 uniquenamesfind(filedata, avebarfile, 'aveselftimes', steps, threads, proj)
+                uniquenamesfind(filedata, maxbarfile, 'maxselftimes', steps, threads, proj)
                 uniquenamesfind(filedata, imbalancebarfile, 'aveselftimes', steps, threads, proj)
             if (dodiff == 1):
-                uniquenamesfind(filedata, diffbarfile, 'allselftimes', str(maxsteps), threads, proj)
+                uniquenamesfind(filedata, avediffbarfile, 'allselftimes', str(maxsteps), threads, proj)
+                uniquenamesfind(filedata, maxdiffbarfile, 'allselftimes', str(maxsteps), threads, proj)
                 uniquenamesfind(filedata, diffimbalancebarfile, 'allselftimes', str(maxsteps), threads, proj)
  
 
@@ -352,25 +358,27 @@ def extract(function="total", n=5, minsteps=0, maxsteps=0):
 
     # write out subroutine top times
     for cp2kout in filedata:
-        
-        maxbarfile = cp2kout['project'] + "_topcalls_" + cp2kout['steps'] + "steps_" + cp2kout['threads'] + "threads-MAX.out"
+
         avebarfile = cp2kout['project'] + "_topcalls_" + cp2kout['steps'] + "steps_" + cp2kout['threads'] + "threads-AVE.out"
+        maxbarfile = cp2kout['project'] + "_topcalls_" + cp2kout['steps'] + "steps_" + cp2kout['threads'] + "threads-MAX.out"
         imbalancebarfile = cp2kout['project'] + "_topcalls_" + cp2kout['steps'] + "steps_" + cp2kout['threads'] + "threads-IMBALANCE.out"
-        diffbarfile = cp2kout['project'] + "_topcalls_" + "diff_6-1_" + cp2kout['threads'] + "threads-AVE.out"
+        avediffbarfile = cp2kout['project'] + "_topcalls_" + "diff_6-1_" + cp2kout['threads'] + "threads-AVE.out"
+        maxdiffbarfile = cp2kout['project'] + "_topcalls_" + "diff_6-1_" + cp2kout['threads'] + "threads-MAX.out"
         diffimbalancebarfile = cp2kout['project'] + "_topcalls_" + "diff_6-1_" + cp2kout['threads'] + "threads-IMBALANCE.out"
         # get the fraction of total time and average
-        cp2kout['maxselftimes'] = avefractionselftime(cp2kout['maxselftimes'], cp2kout['time'])
         cp2kout['aveselftimes'] = avefractionselftime(cp2kout['aveselftimes'], cp2kout['time'])
+        cp2kout['maxselftimes'] = avefractionselftime(cp2kout['maxselftimes'], cp2kout['time'])
         if (cp2kout['steps'] == str(maxsteps)):
             for value in cp2kout['allselftimes']:
-                value['ave_selftime_stepav_fractional'] = value['ave_selftime_stepav']/cp2kout['difftotaltime']
+                value['ave_selftime_stepav_fractional'] = value['ave_selftime_stepav']/cp2kout['difftotaltime'] 
                 value['max_selftime_stepav_fractional'] = value['max_selftime_stepav']/cp2kout['difftotaltime']
         # write out
-        writebarfile(cp2kout, maxbarfile, 'maxselftimes')
         writebarfile(cp2kout, avebarfile, 'aveselftimes')
+        writebarfile(cp2kout, maxbarfile, 'maxselftimes')
         writebarfile(cp2kout, imbalancebarfile, 'aveselftimes', valuekey='aveimbalance')
         if (cp2kout['steps'] == str(maxsteps)):
-            writebarfile(cp2kout, diffbarfile, 'allselftimes', valuekey='ave_selftime_stepav_fractional')
+            writebarfile(cp2kout, avediffbarfile, 'allselftimes', valuekey='ave_selftime_stepav_fractional')
+            writebarfile(cp2kout, maxdiffbarfile, 'allselftimes', valuekey='max_selftime_stepav_fractional')
             writebarfile(cp2kout, diffimbalancebarfile, 'allselftimes', valuekey='imbalance_stepav')
 
 
