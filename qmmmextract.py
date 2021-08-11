@@ -275,6 +275,15 @@ def writebarfile(cp2kout, filename, selftimes, valuekey='finalval'):
     bar.write("\n")
 
 
+def checkempty(time):
+    if sum(time) <= 0.0:
+        return True
+    else:
+        for val in time:
+            if val <= 0.0:
+                time.remove(val)
+        return False
+
 def extract(function="total", n=5, minsteps=0, maxsteps=0):
 
     if (minsteps == 0 or maxsteps == 0):
@@ -295,6 +304,8 @@ def extract(function="total", n=5, minsteps=0, maxsteps=0):
         stepvals.add(cp2kout['steps'])
         projects.add(cp2kout['project'])
         corevals.add(cp2kout['cores'])
+        if checkempty(cp2kout['time']):
+            filedata.remove(cp2kout)
     # set up output files for the data   
     for threads in threadvals:
         for proj in projects:
@@ -309,6 +320,7 @@ def extract(function="total", n=5, minsteps=0, maxsteps=0):
                 os.remove(diffimbalancebarfile)
             for steps in stepvals:
                 output = proj + "_" + function + "_" + steps + "steps_" + threads + "threads.out"
+                diffoutput = proj + "_total_diff" + str(maxsteps) + "-" + str(minsteps) + "_" + threads + "threads.out"
                 maxbarfile = proj + "_topcalls_" + steps + "steps_" + threads + "threads-MAX.out"
                 avebarfile = proj + "_topcalls_" + steps + "steps_" + threads + "threads-AVE.out"
                 imbalancebarfile = proj + "_topcalls_" + steps + "steps_" + threads + "threads-IMBALANCE.out"
@@ -319,9 +331,11 @@ def extract(function="total", n=5, minsteps=0, maxsteps=0):
                 # remove files if they exist
                 if os.path.exists(output):
                     os.remove(output)
+                if os.path.exists(diffoutput):
+                    os.remove(diffoutput)
                 if os.path.exists(avebarfile):
                     os.remove(avebarfile)
-                if os.path.exists(maxbarfile):
+                if os.path.exists(maxbarfile):                    
                     os.remove(maxbarfile)
                 if os.path.exists(imbalancebarfile):
                     os.remove(imbalancebarfile)
@@ -348,6 +362,7 @@ def extract(function="total", n=5, minsteps=0, maxsteps=0):
     for cp2kout in filedata:
 
         output = cp2kout['project'] + "_" + function + "_" + cp2kout['steps'] + "steps_" + cp2kout['threads'] + "threads.out"
+        diffoutput = cp2kout['project'] + "_total_diff" + str(maxsteps) + "-" + str(minsteps) + "_" + cp2kout['threads'] + "threads.out"
         if os.path.exists(output):
             of = open(output, "a")
         else:
@@ -356,9 +371,18 @@ def extract(function="total", n=5, minsteps=0, maxsteps=0):
         of.write(cp2kout['cores'] + "\t" + fmt(sum(cp2kout['time'])/len(cp2kout['time'])) + "\t" + fmt(std_err(cp2kout['time'])) + "\n")
         of.close()
 
+
+        if cp2kout['steps'] == str(maxsteps):
+            if os.path.exists(diffoutput):
+                of = open(diffoutput, "a")
+            else:
+                of = open(diffoutput, "w")
+                of.write("cores     time\n")
+            of.write(cp2kout['cores'] + "\t" + fmt(cp2kout['difftotaltime']) + "\n")
+            of.close()
+
     # write out subroutine top times
     for cp2kout in filedata:
-
         avebarfile = cp2kout['project'] + "_topcalls_" + cp2kout['steps'] + "steps_" + cp2kout['threads'] + "threads-AVE.out"
         maxbarfile = cp2kout['project'] + "_topcalls_" + cp2kout['steps'] + "steps_" + cp2kout['threads'] + "threads-MAX.out"
         imbalancebarfile = cp2kout['project'] + "_topcalls_" + cp2kout['steps'] + "steps_" + cp2kout['threads'] + "threads-IMBALANCE.out"
