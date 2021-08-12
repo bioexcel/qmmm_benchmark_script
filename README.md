@@ -30,7 +30,7 @@ files for this will be named as follows:
 $PROJECT_topcalls_nsteps_nthreads.out
 ```
 
-To get the normalised timestep difference times for each subrountine
+To get the normalised timestep difference times for each subroutine
  add the minsteps and maxsteps options, where these are the two 
 timesteps to difference, e.g.
 
@@ -43,7 +43,7 @@ This will write the normalise times in a file named as follows:
 ```
 $PROJECT_topcalls_diff_maxsteps-minsteps_nthreads.out
 ```
-and also write the total time (6-1)/5 differnce in:
+and also write the total time (6-1)/5 difference in:
 
 ```
 $PROJECT_total_diff_maxsteps-minsteps_nthreads.out
@@ -56,8 +56,10 @@ $PROJECT_total_diff_maxsteps-minsteps_nthreads.out
 python3 qmmmextract.py plot --filename=MQAE_topcalls_1steps_1threads.out --plottype=bar
 ```
 
-This plots a data file (e.g. from generate by extract) given by its filename. The
-plot type can be _time_ or _su_ (speed up) or _bar_ (stacked bar for the top calls)
+This plots a data file (e.g. from generate by extract) given by its
+filename. The plot type can be _time_, _speedup_, _bar_ (stacked bar
+for the top calls) or _barimbalance_ (stacked bar for the load
+imbalances of the top calls).
 
 ## Compare
 
