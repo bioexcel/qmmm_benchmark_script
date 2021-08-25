@@ -463,6 +463,7 @@ def plotdata(filename, plottype="time"):
     f.write('set output sprintf("%s-' + plottype + '.eps", filename) \n')
     if plottype=='time':
         f.write('unset key \n')
+        f.write('set yrange [0:*] \n')
         f.write('plot for [i=2:*:2] filename u 1:i w lp lt i title columnheader, for [i=2:*:2] filename u 1:i:i+1 w yerrorbars notitle ps 2 pt 2 lt i/2+1 lw 4 \n')
     if plottype=='speedup':
         f.write('unset key \n')
