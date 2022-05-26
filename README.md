@@ -7,8 +7,14 @@
 ```
 python3 qmmmextract.py extract --function=mp_waitany --notop=5
 ```
-This extracts timing data from CP2K output (.log) files within directories
-in order to generate scaling data. The subroutine name can be given as 
+This extracts timing data from CP2K output (.log) files within the current
+directory and within any directories in the current directory
+in order to generate scaling data. The timing data, processes and threads
+used, as well as the MD step and the project name are extracted from the CP2K outfile file.
+The project name is used in the naming convention for the extracted data
+files so different systems have a different project name in CP2K.
+
+The subroutine name can be given as 
 arguement (--function) but if this is not supplied the total
 run time is given.
 
@@ -61,6 +67,6 @@ filename. The plot type can be _time_, _speedup_, _bar_ (stacked bar
 for the top calls) or _barimbalance_ (stacked bar for the load
 imbalances of the top calls).
 
-## Compare
+
 
 
