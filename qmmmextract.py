@@ -77,7 +77,7 @@ def top_self_time(filename, n, timetype='ave_selftime'):
 # return standard error
 def std_err(data):
     data = np.asarray(data)
-    if np.all((data==0)):
+    if np.all((data==0)) or data.size==1:
         return 0
     error = np.std(data, ddof=1) / np.sqrt(np.size(data))
     return error
@@ -320,7 +320,7 @@ def extract(function="total", n=5, minsteps=0, maxsteps=0):
                 os.remove(diffimbalancebarfile)
             for steps in stepvals:
                 output = proj + "_" + function + "_" + steps + "steps_" + threads + "threads.out"
-                diffoutput = proj + "_total_diff" + str(maxsteps) + "-" + str(minsteps) + "_" + threads + "threads.out"
+                diffoutput = proj + function + "_diff" + str(maxsteps) + "-" + str(minsteps) + "_" + threads + "threads.out"
                 maxbarfile = proj + "_topcalls_" + steps + "steps_" + threads + "threads-MAX.out"
                 avebarfile = proj + "_topcalls_" + steps + "steps_" + threads + "threads-AVE.out"
                 imbalancebarfile = proj + "_topcalls_" + steps + "steps_" + threads + "threads-IMBALANCE.out"
@@ -362,7 +362,7 @@ def extract(function="total", n=5, minsteps=0, maxsteps=0):
     for cp2kout in filedata:
 
         output = cp2kout['project'] + "_" + function + "_" + cp2kout['steps'] + "steps_" + cp2kout['threads'] + "threads.out"
-        diffoutput = cp2kout['project'] + "_total_diff" + str(maxsteps) + "-" + str(minsteps) + "_" + cp2kout['threads'] + "threads.out"
+        diffoutput = cp2kout['project'] + function + "_diff" + str(maxsteps) + "-" + str(minsteps) + "_" + cp2kout['threads'] + "threads.out"
         if os.path.exists(output):
             of = open(output, "a")
         else:
